@@ -7,11 +7,11 @@
     <IOB @triggerFadeIn="onIOB('TOP')" />
     <div>
       <section 
-        v-for="post in shownList.value"
+        v-for="(post, index) in shownList.value"
         :key="post"
         :class="{highlight : post % 2 === 0}" 
         class="data-item" 
-        :ref="el => refList.push(el)">
+        :ref="el => moveScroll(el, index)">
           {{post}}
       </section>
     </div>
@@ -21,26 +21,32 @@
 </template>
 
 <script>
-import { watch } from 'vue';
-import { reactive, ref } from '@vue/reactivity'
+import { reactive } from '@vue/reactivity'
 import LoadingSpinner from './LoadingSpinner.vue';
 import IOB from './IOB.vue';
-import { onMounted } from '@vue/runtime-core';
+import { onMounted, onUpdated } from '@vue/runtime-core';
 
   export default {
     components: { LoadingSpinner, IOB },
     setup() {
       const postList = Array.from(Array(95).keys()); // dummy data for API
-      const refList = ref([]);
+      let isMoveToTop = false;
       const state = reactive({
         pageTop: 0,
         pageBottom: 0,
         size: 10,
       })
       const shownList = reactive({value:[]});
-      let isMoveToTop = false;
+      const refMap = new Map();
+
+      const moveScroll = (el, index) => {
+        if (isMoveToTop) {
+          refMap.set(index, el);
+        }
+      };
 
       const onIOB = (position) => {
+        refMap.clear();
         if (position === 'TOP') {
           state.pageBottom -= 1;
           state.pageTop -= 1;
@@ -75,24 +81,27 @@ import { onMounted } from '@vue/runtime-core';
         return postList.slice(page * 10, page * 10 + size )
       };
 
-      watch(shownList, () => {
-        if (isMoveToTop) {
-          refList.value.map((item) => console.log(item)) // 순서 보장 안되는중
-          // refList.value[0].scrollIntoView(true);
-        }
-      });
-
       onMounted(() => {
         const newPostList = getPostListAPI(0, 30);
         state.pageBottom = 2;
         shownList.value = newPostList;
+      })
+
+      onUpdated(() => {
+        if (!isMoveToTop) return;
+        const previousFirstElement = refMap.get(10);
+        if (previousFirstElement) {
+          previousFirstElement.scrollIntoView();
+        } else {
+          console.error('no previous first element')
+        }
       })
       
       return {
         state,
         onIOB,
         shownList,
-        refList,
+        moveScroll,
       }
     },
   }
